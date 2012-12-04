@@ -3,51 +3,55 @@ require 'uri'
 require 'json'
 require 'time'
 require 'cgi'
+require 'yaml'
+require 'debugger'
+require 'twitter'
 
+config = YAML::load( File.open( 'config.yml' ) )
 PANDA_LOCATION="UN Plaza"
 PANDA_WINDOW=19
 PANDA_USERNAME="chairmantruck"
 
-def http_get(domain,path,params)
-  return Net::HTTP.get(domain, "#{path}?".concat(params.collect { |k,v| "#{k}=#{CGI::escape(v.to_s)}" }.join('&'))) if not params.nil?
-  return Net::HTTP.get(domain, path)
-end
-
-def twoxy_get(url)
-  JSON.parse http_get('twoxy.spongecell.com', '/fetch/url', {source: url})
+Twitter.configure do |t|
+  t.consumer_key = config["consumer_key"]
+  t.consumer_secret = config["consumer_secret"]
+  t.oauth_token = config["oauth_token"]
+  t.oauth_token_secret = config["oauth_token_secret"]
 end
 
 def is_chairman_nearby?
-  chairman_json = twoxy_get('http://twitter.com/statuses/user_timeline/' + PANDA_USERNAME + '.json')
+  chairman_tweets = Twitter.user_timeline PANDA_USERNAME
 
-  chairman_json.each do |tweet|
-    if tweet["text"].match(Regexp.new(PANDA_LOCATION, Regexp::IGNORECASE)) != nil
-      tweet_time = Time.parse tweet["created_at"]
+  chairman_tweets.each do |tweet|
+    if tweet.text.match(Regexp.new(PANDA_LOCATION, Regexp::IGNORECASE)) != nil
+      tweet_time = tweet.created_at
       now = Time.now
       
       if tweet_time + (PANDA_WINDOW * 60 * 60) > now
-        return true
+        yield tweet.text + tweet.created_at.to_s
       end
     end
   end
-  return false
+  yield false
 end
 
 def turn_kitten_off
   `gpio -g write 4 0`
-  puts "Kitty go to sleep!"
 end
 
 def turn_kitten_on
   `gpio -g write 4 1`
-  puts "Kitty want a sandwich!"
 end
 
 while true
-  if is_chairman_nearby?
-    turn_kitten_on()
-  else
-    turn_kitten_off()
+  is_chairman_nearby? do |info|
+    if info
+      turn_kitten_on()
+      puts info
+    else
+      turn_kitten_off()
+      puts "Kitty go to sleep"
+    end
   end
-  sleep(10)
+  sleep(60)
 end
