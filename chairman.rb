@@ -34,12 +34,12 @@ def is_chairman_nearby?
 end
 
 def turn_kitten_off
-  `gpio -g write 4 0`
+  `gpio -g write 4 0; gpio -g write 4 1`
   puts "Kitty go to sleep!"
 end
 
 def turn_kitten_on
-  `gpio -g write 4 1`
+  `gpio -g write 4 1; gpio -g write 17 1`
   puts "Kitty want a sandwich!"
 end
 
